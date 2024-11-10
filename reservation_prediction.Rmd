@@ -1,0 +1,402 @@
+Claudia álvarez Costas  
+
+Con respecto a la formulación del ejercicio:
+StaysInWeekendNights: Número de noches entre semana
+StaysInWeekNights: Número de noches el fin de semana
+¿Está al revés? No me afecta pero ojo (creo que lo que está bien es el nombre y al revés la explicación porque StaysInWeekNights tiene un rango mayor)
+
+
+1. y 2. 
+Visualización general de los datos
+```{r}
+str(datos)
+```
+
+Numéricas (integer) :
+Leadtime, StaysInWeekendNights, StaysInWeekNights, Adults, Children
+Numérica (decimal):
+ADR
+Categóricas : 
+CustomerType, Meal, Country, ReservedRoomType, IsRepeatedGuest,Company (227 levels)
+Fechas:
+ReservationStatusDate, ArrivalDate
+
+
+Cambiamos los formatos para que sean fechas
+```{r}
+datos$ReservationStatusDate=as.Date(datos$ReservationStatusDate)
+datos$ArrivalDate=as.Date(datos$ArrivalDate)
+```
+
+
+```{r}
+summary(datos) 
+```
+
+Los primeros 2 campos no interesan
+De las variables Fecha tal vez sea interesante quedarnos con los meses pero hay que tener en cuenta que periodos de temporada alta como Semana Santa cambia de mes en función del año. Además, estos dos campos son los que nos dan LeadTime por lo que existe 
+colinealidad. Por todo esto decido no tenerlos en cuenta.
+
+Porcentaje de registros para el que Adults==2:
+```{r}
+nrow(datos[datos$Adults==2,])/nrow(datos)*100
+```
+Supera al 75% 
+
+Porcentaje de registros para el que Children==0:
+```{r}
+nrow(datos[datos$Children==0,])/nrow(datos)*100
+```
+Supera al 90% -> no tendremos en cuenta esta variable al modelar
+
+Hay registros para 0 Adultos: Comprobemos si hay niños
+```{r}
+nrow(datos[datos$Adults==0,]) 
+nrow(datos[datos$Adults==0 & datos$Children==0,])
+```
+Hay 11 registros de reservas que no tienen ni Adultos ni Niños: las omito
+
+En ADR vemos que hay al menos un valor negativo: en lo que sigue lo omitiremos pues el hotel no paga al cliente 
+
+```{r}
+nrow(datos[datos$ADR<0,]) # Comprobamos que es una observacion aislada: la omito
+
+datos=datos[datos$ADR>=0 & datos$Adults>0,] # Elimino esos registros
+
+attach(datos)
+```
+
+
+
+Gráficos
+```{r}
+par(mfrow=c(1,2))
+
+hist(LeadTime, ylim=c(0,20000), main="LeadTime")
+plot(IsCanceled,LeadTime, ylim=c(0,max(LeadTime)),
+     main="LeadTime",xlab="IsCanceled", ylab="LeadTime")
+```
+
+En los gráficos se observa que existen valores atípicos y hay diferencia para los cancelados y no cancelados
+
+```{r}
+par(mfrow=c(1,2))
+hist(StaysInWeekendNights, ylim=c(0,20000), main="StaysInWeekendNights")
+plot(IsCanceled,StaysInWeekendNights, ylim=c(0,max(StaysInWeekendNights)),
+     main="StaysInWeekendNights",xlab="IsCanceled", ylab="StaysInWeekendNights")
+```
+
+De nuevo se tienen valores atícos. Gráficamente no queda clara la diferencia en la variable respuesta
+
+
+```{r}
+par(mfrow=c(1,2))
+hist(StaysInWeekNights, ylim=c(0,30000),main="StaysInWeekNights")
+plot(IsCanceled,StaysInWeekNights, ylim=c(0,max(StaysInWeekNights)),
+     main="StaysInWeekNights",xlab="IsCanceled", ylab="StaysInWeekNights")
+```
+
+Se observa diferencia en la respuesta
+
+```{r}
+par(mfrow=c(2,2))
+hist(Adults, ylim=c(0,45000), main="Adults")
+plot(IsCanceled, Adults, ylim=c(0,max(Adults)),
+     main="Adults",xlab="IsCanceled", ylab="Adults")
+
+hist(ADR, ylim=c(0,20000), main="LeadTime")
+plot(IsCanceled,ADR, ylim=c(0,max(ADR)),
+     main="ADR",xlab="IsCanceled", ylab="ADR")
+```
+
+Para Adults no podemos ver diferencia: ocurría algo parecido que lo de los niños, 
+(más de un 75% toman un valor).
+Para ADR se observa que existen valores atípicos y hay diferencia para los cancelados y no cancelados
+
+```{r}
+hist(Children, ylim=c(0,45000), main="Children")
+```
+
+
+
+
+
+Calculamos la matriz de corr para las numericas y IsWeekendNight e IsWeekNight tienen correlacion bastante alta (>0.7)
+```{r}
+cor(cbind(datos[,5:9],ADR))
+```
+
+Categóricas:
+
+
+```{r}
+# CustomerType
+
+barplot(table(CustomerType), ylim=c(0,30000), main="CustomerType")		
+n=length(CustomerType);n					
+tab_CustomerType=cbind(Frecuencia=table(CustomerType),Densidad=table(CustomerType)/n)
+tab_CustomerType=rbind(tab_CustomerType,Total=colSums(tab_CustomerType))
+print("Tabla CustomerType: ");tab_CustomerType				
+pie(table(CustomerType)/n,main="Porcentaje de CustomerType")
+
+
+barplot(table(Meal), ylim=c(0,30000), main="Meal")		
+n=length(Meal);n					
+tab_Meal=cbind(Frecuencia=table(Meal),Densidad=table(Meal)/n)
+tab_Meal=rbind(tab_Meal,Total=colSums(tab_Meal))
+print("Meal: ");tab_Meal					
+pie(table(Meal)/n,main="Porcentaje de Meal")
+print("Hay categorías con muy pocas observaciones mientras que BB concentra mas de un 75%")
+
+
+# Country
+tab_Country=cbind(Frecuencia=table(Country),Densidad=table(Country)/n)
+tab_Country=rbind(tab_Country,Total=colSums(tab_Country))
+print("Tabla Country: ");tab_Country
+print("Comprobamos que las densidades son muy bajas, no tendremos en cuenta esta variable")
+
+# Company
+n=length(Company);n					
+tab_Company=cbind(Frecuencia=table(Company),Densidad=table(Company)/n)
+tab_Company=rbind(tab_Company,Total=colSums(tab_Company))
+print("Tabla Company: ");tab_Company		
+print("Comprobamos que las densidades son muy bajas, no tendremos en cuenta esta variable")
+
+# ReservedRoomType
+n=length(ReservedRoomType);n					
+tab_ReservedRoomType=cbind(Frecuencia=table(ReservedRoomType),Densidad=table(ReservedRoomType)/n)
+tab_ReservedRoomType=rbind(tab_ReservedRoomType,Total=colSums(tab_ReservedRoomType))
+print("Tabla ReservedRoomType: ");tab_ReservedRoomType		
+print("Comprobamos que las densidades son muy bajas, no tendremos en cuenta esta variable (hay 11 grupos, tampoco interesa graficar) ya que además hay mucha diferencia en el número de observaciones en cada categoría")
+
+# IsRepeatedGuest
+n=length(IsRepeatedGuest);n					
+tab_IsRepeatedGuest=cbind(Frecuencia=table(IsRepeatedGuest),Densidad=table(IsRepeatedGuest)/n)
+tab_IsRepeatedGuest=rbind(tab_IsRepeatedGuest,Total=colSums(tab_IsRepeatedGuest))
+print("Tabla IsRepeatedGuest: ");tab_IsRepeatedGuest
+print("Muy pocos han sido anteriormente Clientes (5%). Hay mucha diferencia en el numero de observaciones en cada categoria")
+barplot(table(IsRepeatedGuest), ylim=c(0,35000), main="IsRepeatedGuest")	
+pie(table(IsRepeatedGuest)/n,main="Porcentaje de IsRepeatedGuest")
+
+
+# IsCanceled
+n=length(IsCanceled);n					
+tab_IsCanceled=cbind(Frecuencia=table(IsCanceled),Densidad=table(IsCanceled)/n)
+tab_IsCanceled=rbind(tab_IsCanceled,Total=colSums(tab_IsCanceled))
+print("Tabla IsCanceled: ");tab_IsCanceled
+barplot(table(IsCanceled), ylim=c(0,35000), main="IsCanceled")	
+pie(table(IsCanceled)/n,main="Porcentaje de IsCanceled")
+
+```
+
+
+¿Qué variables sirven para predecir IsCanceled?
+En el caso de las numéricas se puede intuir gráficamente pero confirmaremos con un t.test()
+Para las categóricas seleccionamos un test chi-cuadrado
+
+```{r}
+
+print("LeadTime")
+t.test(LeadTime~IsCanceled, data=datos)
+print("LeadTime sí")
+print("              ")
+print("              ")
+print("              ")
+print("StaysInWeekNights")
+t.test(StaysInWeekNights~IsCanceled, data=datos) 
+print("StaysInWeekNights si")
+print("              ")
+print("              ")
+print("              ")
+print("StaysInWeekendNights")
+t.test(StaysInWeekendNights~IsCanceled, data=datos) 
+print("StaysInWeekendNights si")
+print("              ")
+print("              ")
+print("              ")
+print("Adults")
+t.test(Adults~IsCanceled, data=datos) 
+print("Adults si")
+print("              ")
+print("              ")
+print("              ")
+print("Children")
+t.test(Children~IsCanceled, data=datos) 
+print("Children si (pero no la vamos a tener en cuenta pq no teneos suf registros por el fuerte desequilibrio entre grupos)")
+print("              ")
+print("              ")
+print("              ")
+print("ADR")
+t.test(ADR~IsCanceled, data=datos) 
+print("ADR si")
+print("              ")
+print("              ")
+print("              ")
+print("CustomerType")
+tab1=table(CustomerType, IsCanceled)
+chisq.test(tab1)
+print("CustomerType si")
+print("              ")
+print("              ")
+print("              ")
+print("ReservedRoomType")
+tab1=table(ReservedRoomType, IsCanceled)
+chisq.test(tab1)
+print("Vemos que en efecto no tiene sentido considerarlo, la aprox del test puede ser incorrecta")
+print("              ")
+print("              ")
+print("              ")
+print("IsRepeatedGuest")
+tab1=table(IsRepeatedGuest, IsCanceled)
+chisq.test(tab1)
+print("IsRepeatedGuest si")
+```
+
+
+
+
+
+¿Qué modelo utilizaría?
+SVM: Puede ser interesante porque trabaja con clases desequilibradas
+Decision Trees: No porque hay desequilibrio entre clases de variables
+Logistic Regression: No porque hay colinealidad entre variables, distribución de clases desequilibrada...
+Redes neuronales: Puede ser interesante aunque son cajas negras
+Random Forest: Puede ser interesante
+Gradient Boosting: Es sensible a los atípicos (en este caso vemos bastantes en los boxplots)
+Naive Bayes: No porque necesitamos asumir distribuciones
+PCA: Distintas escalas, muchos datos y sensible a los atípicos
+Lasso: Realmente solo veíamos corr para dos variables, no íbamos a conseguir penalizar mucho
+
+
+En base a esto pruebo con RF y SVM, he decidido intentar no usar redes neuronales por ser cajas negras 
+
+```{r}
+library(caret)
+library(randomForest)
+library(e1071)
+library(pROC)
+
+set.seed(123)
+# División de datos en entrenamiento y prueba
+datos=as.data.frame(cbind(datos[5:8], datos[10:12], datos[16:17])) # Selecciono los campos que voy a utilizar
+# summary(datos)
+n=floor(0.7*nrow(datos))
+train=sample(1:nrow(datos),n)
+datos_train=datos[train,]
+datos_test=datos[-train,]
+
+# pesos=ifelse(IsCanceled == "False", 1, 1000000)
+
+## Entrenamiento de modelos
+
+# Random Forest
+model_rf =randomForest(IsCanceled ~ ., data=datos_train) # weight.class=pesos
+
+# SVM
+model_svm=svm(IsCanceled ~ ., data = datos_train)
+
+
+## Predicciones en el conjunto de prueba
+pred_rf = predict(model_rf, datos_test[,1:9])
+pred_svm=predict(model_svm, newdata = datos_test[,1:9])
+
+## Evaluar el rendimiento
+# Matriz de confusión
+confusion_rf=confusionMatrix(pred_rf, datos_test$IsCanceled)
+print("Matriz de confusión RandomForest"); confusion_rf
+# Si recordamos, resulta más interesante equivocarse prediciendo una cancelación que
+# equivocarse con que no se dé (se pueden reubicar clientes en otros hoteles)
+# En este caso la posibilidad de que prediga Falso y sea Verdadero es aprox. 12% 
+confusion_svm =confusionMatrix(pred_svm, datos_test$IsCanceled)
+print("Matriz de confusión SVM"); confusion_svm
+# Aumenta la predicción Falso siendo Verdadero 
+
+# Métricas de clasificación
+precision_rf=confusion_rf$overall["Accuracy"]
+precision_svm=confusion_svm$overall["Accuracy"]
+
+# Curvas ROC
+roc_rf=roc(datos_test$IsCanceled, as.numeric(pred_rf))
+roc_svm=roc(datos_test$IsCanceled, as.numeric(pred_svm))
+
+# AUC
+auc_rf=auc(roc_rf); auc_rf
+auc_svm=auc(roc_svm); auc_svm
+
+# Imprimir resultados
+cat("Random Forest - Precisión:", precision_rf, "AUC:", auc_rf, "\n")
+cat("SVM - Precisión:", precision_svm, "AUC:", auc_svm, "\n")
+
+```
+
+
+
+Confirmamos que el Random Forest es mejor, obviamente se debería probar con diferentes hiperparámetros para tratar de mejorarlo
+
+
+
+Evaluación del modelo
+Conseguimos una precisión proxima al 90% pero el valor Kappa es aproximadamente 0.2 siendo próximo a cero -> es mala señal, puede que los buenos resultados sean puro azar. Llama la atención también el contraste entre los valores de sensitivity y specifity: el modelo predice mucho mejor los casos negativos que los positivos (tiene sentido porque había mucho mas registros de reservas no canceladas) esto provoca que la Precisión Equilibrada no sea demasiado grande, roza el 0.60
+
+El modelo está prediciendo principalmente las NO cancelaciones y puede tener dificultades para las cancelaciones: Realmente no es lo óptimo y de hecho al probar a dar más peso a las cancelaciones apenas se observan diferencias en el resultado.
+
+¿Podemos mejorar las predicciones con un modelo de Red Neuronal?
+
+```{r}
+
+## Nnet
+#install.packages("nnet")
+#install.packages("glmnet")
+library(nnet)
+library(glmnet)
+
+set.seed(123)
+model_nnet=nnet(IsCanceled ~ ., size=2, decay=0.1, trace=F, data=datos_train, maxit=200);model_nnet
+
+pred_nnet=data.frame(predict(model_nnet, datos_test), IsCanceled=predict(model_nnet,datos_test, type="class"))
+
+## Matriz confusion 
+confusion_nnet <- confusionMatrix(as.factor(pred_nnet$IsCanceled), datos_test$IsCanceled)
+print("Matriz de confusión Nnet"); confusion_nnet
+
+```
+Vemos que no conseguimos mejorarlo
+
+Como la proporción de registros sin cancelacion es mucho mayor que la de cancelados, los modelos tienen dificultades para detectar las cancelaciones frente a las no cancelaciones.
+Idea: probar a reducir el dataset quitando registros de no cancelaciones para equilbrar las clases:
+
+```{r}
+nf=which(datos$IsCanceled=="False")
+m=length(datos$IsCanceled[datos$IsCanceled=="True"])
+
+sub_f=sample(which(datos$IsCanceled=="False"),m) # Seleccionamos indices aleatoriamente
+subdatos=as.data.frame(rbind(datos[sub_f,], datos[datos$IsCanceled=="True",]))
+
+
+n2=floor(0.7*nrow(subdatos))
+train=sample(1:nrow(subdatos),n2)
+subdatos_train=subdatos[train,]
+subdatos_test=subdatos[-train,]
+
+# Random Forest 2
+model_rf2=randomForest(IsCanceled ~ ., data=subdatos_train) # weight.class=pesos
+# Podriamos probar con diferentes hiperparametros para afinar
+pred_rf2=predict(model_rf2, subdatos_test[,1:9])
+confusion_rf2=confusionMatrix(pred_rf2, subdatos_test$IsCanceled)
+print("Matriz de confusión RandomForest con subconjunto del data frame"); confusion_rf2
+```
+
+En efecto se comprueba lo que sospechaba: si equilibro el dataset de manera para que las categorías de la variable respuesta tengan un número aprox de observaciones el modelo me funciona mejor: aunque las medidas de accuracy sean peores se consigue
+algo que nos funciona en nuestro caso particular.
+En este caso lo que consideramos como error es Prediction "False" y Reference "True" de forma que para el subset conseguimos un error del 8% y para el completo del 12% (aprox)
+Además el Kappa es de 0.45 por lo que tenemos menos aleatoriedad y la BalacedAccuracy también mejora y es de aprox 0.7
+
+A nivel implementación real: realmente tenemos que esperar reubicar gente pero el hotel se llenaría porque predecimos más cancelaciones de las que hay!
+Un mejor algoritmo seria manteniendo o mejorando las medidas de accuracy u obteniendo una matriz de confusión que se equivoque más prediciendo a favor de True o bien, con más aciertos (mayor proporción de datos en la diag de la matriz de confusión perdiendo mínimamente el error a favor del True)
+
+
+Conclusion final: Modelo RandomForest y con un dataset subconjunto del de partida (no hace falta necesariamente que tengamos el mismo número de observaciones con cancelación que sin ella)
+
+Notar que no he hecho validación cruzada ni una evaluación demasiado exhaustiva por no extenderme más,aunque lo preferible sería probar a seleccionar variables y ver si podemos afinar
+
+Muchas gracias por su tiempo :)
